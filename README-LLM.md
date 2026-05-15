@@ -228,6 +228,42 @@ deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
 
 **Heads up on size:** The full build (both platforms, latest versions) gives you ~34 million pairs across ~500 language files plus `index.jsonl` — roughly 25GB on disk. Filtering to one platform and a few languages brings that down to under 1GB. The `dataset/` folder is gitignored — don't try to commit it.
 
+### Language codes
+
+Use these codes with `--languages`. Apple uses its own locale identifiers — not always what you'd expect.
+
+| Code | Language | | Code | Language |
+|---|---|---|---|---|
+| `ar` | Arabic | | `ko` | Korean |
+| `bn` | Bengali | | `lt` | Lithuanian |
+| `bg` | Bulgarian | | `ml` | Malayalam |
+| `ca` | Catalan | | `ms` | Malay |
+| `zh_CN` | Chinese (Simplified) | | `mr` | Marathi |
+| `zh_HK` | Chinese (Hong Kong) | | `nl` | Dutch |
+| `zh_TW` | Chinese (Traditional) | | `no` | Norwegian |
+| `yue_CN` | Cantonese | | `or` | Odia |
+| `hr` | Croatian | | `pa` | Punjabi |
+| `cs` | Czech | | `pl` | Polish |
+| `da` | Danish | | `pt_BR` | Portuguese (Brazil) |
+| `nl` | Dutch | | `pt_PT` | Portuguese (Portugal) |
+| `en_AU` | English (Australia) | | `ro` | Romanian |
+| `en_GB` | English (UK) | | `ru` | Russian |
+| `en_IN` | English (India) | | `sk` | Slovak |
+| `fi` | Finnish | | `sl` | Slovenian |
+| `fr` | French | | `es` | Spanish |
+| `fr_CA` | French (Canada) | | `es_419` | Spanish (Latin America) |
+| `de` | German | | `es_US` | Spanish (US) |
+| `el` | Greek | | `sv` | Swedish |
+| `gu` | Gujarati | | `ta` | Tamil |
+| `he` | Hebrew | | `te` | Telugu |
+| `hi` | Hindi | | `th` | Thai |
+| `hu` | Hungarian | | `tr` | Turkish |
+| `id` | Indonesian | | `uk` | Ukrainian |
+| `it` | Italian | | `ur` | Urdu |
+| `ja` | Japanese | | `vi` | Vietnamese |
+| `kn` | Kannada | | | |
+| `kk` | Kazakh | | | |
+
 ### Example prompts
 
 **Bulk translation:**
