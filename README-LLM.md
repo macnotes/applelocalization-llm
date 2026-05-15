@@ -1,6 +1,14 @@
 # Using Apple Localization Data with LLMs
 
-This document explains how to use the data in this project to help an LLM produce accurate, Apple-consistent translations — for iOS/macOS apps, websites, or any UI that should feel native to Apple's ecosystem.
+## Why this matters
+
+Ask a general-purpose LLM to translate "Settings" into French and it will likely say **"Paramètres"** — a perfectly correct French word. But every iPhone user in France sees **"Réglages"** in the Settings app. Ask it to translate "Close" and it might offer "Clore" or "Fermeture". Apple uses **"Fermer"**, consistently, across every framework.
+
+These aren't wrong answers — they're just not Apple's answers. In an iOS or macOS app, or a website targeting Apple users, deviating from Apple's vocabulary creates subtle friction. Users notice, even if they can't articulate why.
+
+This project gives an LLM access to Apple's actual translations — millions of strings from real iOS and macOS releases — so it can ground its output in what Apple ships, rather than what sounds reasonable.
+
+---
 
 ## What's in this repo
 
