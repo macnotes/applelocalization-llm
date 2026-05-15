@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-write
+#!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-run --allow-env
 
 // Exports LLM-ready datasets from applelocalization-tools data files.
 //
@@ -14,7 +14,7 @@
 // enabling multi-language lookup and non-English source lookups.
 //
 // Usage:
-//   deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
+//   deno run --allow-read --allow-write --allow-net --allow-run scripts/export-llm-dataset.ts \
 //     --data ../applelocalization-tools/data \
 //     --out dataset [--platform ios|macos] [--languages fr,ja,de,ko,es] [--all-versions]
 
@@ -75,6 +75,55 @@ const languageFilter = args.languages
 if (platformFilter && !["ios", "macos"].includes(platformFilter)) {
   console.error(`Unknown platform: ${platformFilter}. Use 'ios' or 'macos'.`);
   Deno.exit(1);
+}
+
+// Check if the data directory is a git repo and warn if it's stale
+async function checkDataFreshness(dataPath: string) {
+  try {
+    const gitDir = dataPath.endsWith("/data")
+      ? dataPath.slice(0, -5)  // strip /data to get repo root
+      : dataPath;
+
+    // Get local last commit date
+    const localCmd = new Deno.Command("git", {
+      args: ["-C", gitDir, "log", "-1", "--format=%ct"],
+      stdout: "piped", stderr: "null",
+    });
+    const localOut = await localCmd.output();
+    if (!localOut.success) return; // not a git repo, skip check
+    const localTs = parseInt(new TextDecoder().decode(localOut.stdout).trim());
+    if (!localTs) return;
+
+    // Fetch latest commit date from GitHub API (no auth needed for public repos)
+    const res = await fetch(
+      "https://api.github.com/repos/kishikawakatsumi/applelocalization-tools/commits?per_page=1",
+      { headers: { "Accept": "application/vnd.github+json" } }
+    ).catch(() => null);
+    if (!res?.ok) return;
+
+    const [latest] = await res.json();
+    const remoteTs = new Date(latest.commit.committer.date).getTime() / 1000;
+    const ageDays = Math.floor((remoteTs - localTs) / 86400);
+
+    if (ageDays > 0) {
+      const localDate = new Date(localTs * 1000).toLocaleDateString();
+      const remoteDate = new Date(remoteTs * 1000).toLocaleDateString();
+      console.warn(`\nWarning: your local applelocalization-tools data is ${ageDays} day(s) out of date.`);
+      console.warn(`  Local:  ${localDate}`);
+      console.warn(`  Remote: ${remoteDate}`);
+      console.warn(`\nTo update: git -C ${gitDir} pull`);
+      const buf = new Uint8Array(1);
+      Deno.stdout.writeSync(new TextEncoder().encode("\nContinue with stale data? [y/N] "));
+      Deno.stdin.readSync(buf);
+      if (buf[0] !== 121 && buf[0] !== 89) { // y or Y
+        console.log("Aborted.");
+        Deno.exit(0);
+      }
+      console.log("");
+    }
+  } catch {
+    // Staleness check is best-effort — never block the build
+  }
 }
 
 async function resolveDataDirs(root: string): Promise<string[]> {
@@ -156,6 +205,7 @@ let totalRecords = 0;
 let totalGroups = 0;
 
 const absDataDir = await Deno.realPath(dataDir);
+await checkDataFreshness(absDataDir);
 const dataDirs = await resolveDataDirs(absDataDir);
 
 // Truncate any existing JSONL output files so reruns are clean

@@ -164,5 +164,8 @@ dist
 # LLM dataset output (built locally via scripts/export-llm-dataset.ts)
 dataset/
 
+# Local clone of applelocalization-tools source data (if cloned inside this repo)
+data/
+
 
 .claude/settings.local.json

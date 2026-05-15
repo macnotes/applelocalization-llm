@@ -186,6 +186,12 @@ And the raw localization data — clone it alongside this repo:
 git clone --depth 1 https://github.com/kishikawakatsumi/applelocalization-tools ../applelocalization-tools
 ```
 
+That repo gets updated when Apple ships new OS versions. The export script will warn you if your local copy is out of date and ask before proceeding. To update manually:
+
+```sh
+git -C ../applelocalization-tools pull
+```
+
 ### Building it
 
 **Most developers: pick your languages and platform**
@@ -193,7 +199,7 @@ git clone --depth 1 https://github.com/kishikawakatsumi/applelocalization-tools 
 If you're building an iOS app and only need a handful of languages, this is all you need. Build time is a few seconds, output is a few hundred MB instead of 25GB:
 
 ```sh
-deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
+deno run --allow-read --allow-write --allow-net --allow-run scripts/export-llm-dataset.ts \
   --data ../applelocalization-tools/data \
   --out dataset \
   --platform ios \
@@ -203,7 +209,7 @@ deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
 **iOS only, all languages (~12GB, ~6 min):**
 
 ```sh
-deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
+deno run --allow-read --allow-write --allow-net --allow-run scripts/export-llm-dataset.ts \
   --data ../applelocalization-tools/data \
   --out dataset \
   --platform ios
@@ -212,7 +218,7 @@ deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
 **Everything — both platforms, latest versions (~25GB, ~10 min):**
 
 ```sh
-deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
+deno run --allow-read --allow-write --allow-net --allow-run scripts/export-llm-dataset.ts \
   --data ../applelocalization-tools/data \
   --out dataset
 ```
@@ -220,7 +226,7 @@ deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
 **All historical OS versions (very large):**
 
 ```sh
-deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
+deno run --allow-read --allow-write --allow-net --allow-run scripts/export-llm-dataset.ts \
   --data ../applelocalization-tools/data \
   --out dataset \
   --all-versions
