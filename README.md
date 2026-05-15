@@ -18,7 +18,7 @@ This project is an add-on to two projects by [Katsumi Kishikawa](https://github.
 
 - **[applelocalization.com](https://applelocalization.com)** is a website with a searchable database of every localized string in iOS and macOS, millions of translations straight from Apple's frameworks. The MCP server in this project wraps Kishikawa-san's search API. You don't have to download any of the Kishikawa projects if you just want to have the MCP talk to the website he hosts. 
 
-- **[applelocalization-web](https://github.com/kishikawakatsumi/applelocalization-web) is the source code for the applelocalization.com website. You can download that and run the website locally then have the MCP talk to that instead of the hosted version. The MCP can do lookups faster that way. 
+- **[applelocalization-web](https://github.com/kishikawakatsumi/applelocalization-web)** is the source code for the applelocalization.com website. You can download that and run the website locally then have the MCP talk to that instead of the hosted version. The MCP can do lookups faster that way. 
 
 - **[applelocalization-tools](https://github.com/kishikawakatsumi/applelocalization-tools)** has the raw JSON data that powers the applelocalization.com website. If you want to do bulk translations, clone that repo and then run the LLM export script in this repo. That transforms the translation database into JSONL files that are easier for an LLM to digest.
 
