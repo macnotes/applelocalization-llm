@@ -1,6 +1,6 @@
 # Using Apple Localization Data with LLMs
 
-I'm a lone developer. Mostly Swift apps... no team of translators to help me localize. Localization isn't something I'd even consider before LLM AI came on the scene. AI combined with Apple's switch from Strings files to String Catalogs (.xcstrings) in Xcode 15 makes it possible. Xcstring files are JSON-based, support pluralization and device variations in a single file, and Xcode manages them directly in a dedicated editor. 
+I'm a lone developer... no team of translators to help me localize. Localization isn't something I'd even considered before LLM AI came around. AI combined with Apple's switch from Strings files to String Catalogs (.xcstrings) in Xcode 15 makes it possible. Xcstring files are JSON-based, support pluralization and device variations in a single file, and Xcode manages them directly in a dedicated editor. 
 
 There's really no excuse to not localize anymore. AI makes quick work of it. There's a catch, though. Language is idiomatic and LLMs make translation mistakes. If you're a non-English speaker, you're probably used to it, but it's still kind of annoying. I'm an English speaker so I'm lucky in that most everything I need to read is already in English, but I even find it distracting when I read something in UK English and they spell "colour" wrong. But non-English speakers have it way worse. 
 
