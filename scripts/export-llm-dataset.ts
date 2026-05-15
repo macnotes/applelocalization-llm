@@ -27,14 +27,23 @@ interface SourceFile {
   localizations: Record<string, { language: string; target: string; filename: string }[]>;
 }
 
-interface PairRecord {
-  key: string;
-  source: string;
-  target: string;
-  language: string;
-  platform: string;
-  version: string;
-  bundle: string;
+// by-language record: language is in the filename, bundle is in the filename for by-bundle
+interface LangRecord {
+  k?: string;  // key — omitted when identical to s
+  s: string;   // source (English)
+  t: string;   // target
+  p: string;   // platform
+  v: string;   // version
+  b: string;   // bundle path
+}
+
+interface BundleRecord {
+  k?: string;  // key — omitted when identical to s
+  s: string;   // source (English)
+  t: string;   // target
+  l: string;   // language
+  p: string;   // platform
+  v: string;   // version
 }
 
 const CONCURRENCY = 32;
@@ -104,7 +113,7 @@ async function getHandle(path: string): Promise<Deno.FsFile> {
   return handles.get(path)!;
 }
 
-function bufferLine(path: string, record: PairRecord) {
+function bufferLine(path: string, record: LangRecord | BundleRecord) {
   if (!buffers.has(path)) buffers.set(path, []);
   buffers.get(path)!.push(JSON.stringify(record));
 }
@@ -178,11 +187,13 @@ async function processFile(filePath: string) {
     for (const { language, target } of translations) {
       if (language === "en") continue;
 
-      const record: PairRecord = { key, source, target, language, platform, version, bundle: file.bundlePath };
+      const keyField = key !== source ? { k: key } : {};
+      const langRecord: LangRecord = { ...keyField, s: source, t: target, p: platform, v: version, b: file.bundlePath };
+      const bundleRecord: BundleRecord = { ...keyField, s: source, t: target, l: language, p: platform, v: version };
       const langFile = join(outDir, "by-language", `en-${language}.jsonl`);
 
-      bufferLine(langFile, record);
-      bufferLine(bundleFile, record);
+      bufferLine(langFile, langRecord);
+      bufferLine(bundleFile, bundleRecord);
       flushPaths.add(langFile);
 
       languages.add(language);
