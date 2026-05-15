@@ -77,24 +77,19 @@ if (platformFilter && !["ios", "macos"].includes(platformFilter)) {
   Deno.exit(1);
 }
 
-// Check if the data directory is a git repo and warn if it's stale
+const STAMP_FILE = "applelocalization-tools.sha";
+
+// Compares the local stamp file against the latest commit SHA on GitHub.
+// Writes an updated stamp after a successful build (called at end of script).
 async function checkDataFreshness(dataPath: string) {
   try {
-    const gitDir = dataPath.endsWith("/data")
-      ? dataPath.slice(0, -5)  // strip /data to get repo root
-      : dataPath;
+    const gitDir = dataPath.endsWith("/data") ? dataPath.slice(0, -5) : dataPath;
 
-    // Get local last commit date
-    const localCmd = new Deno.Command("git", {
-      args: ["-C", gitDir, "log", "-1", "--format=%ct"],
-      stdout: "piped", stderr: "null",
-    });
-    const localOut = await localCmd.output();
-    if (!localOut.success) return; // not a git repo, skip check
-    const localTs = parseInt(new TextDecoder().decode(localOut.stdout).trim());
-    if (!localTs) return;
+    // Read local stamp (SHA we last built from)
+    let localSha: string | null = null;
+    try { localSha = (await Deno.readTextFile(STAMP_FILE)).trim(); } catch { /* no stamp yet */ }
 
-    // Fetch latest commit date from GitHub API (no auth needed for public repos)
+    // Fetch latest commit SHA from GitHub API
     const res = await fetch(
       "https://api.github.com/repos/kishikawakatsumi/applelocalization-tools/commits?per_page=1",
       { headers: { "Accept": "application/vnd.github+json" } }
@@ -102,28 +97,45 @@ async function checkDataFreshness(dataPath: string) {
     if (!res?.ok) return;
 
     const [latest] = await res.json();
-    const remoteTs = new Date(latest.commit.committer.date).getTime() / 1000;
-    const ageDays = Math.floor((remoteTs - localTs) / 86400);
+    const remoteSha: string = latest.sha;
+    const remoteDate = new Date(latest.commit.committer.date).toLocaleDateString();
 
-    if (ageDays > 0) {
-      const localDate = new Date(localTs * 1000).toLocaleDateString();
-      const remoteDate = new Date(remoteTs * 1000).toLocaleDateString();
-      console.warn(`\nWarning: your local applelocalization-tools data is ${ageDays} day(s) out of date.`);
-      console.warn(`  Local:  ${localDate}`);
-      console.warn(`  Remote: ${remoteDate}`);
-      console.warn(`\nTo update: git -C ${gitDir} pull`);
-      const buf = new Uint8Array(1);
-      Deno.stdout.writeSync(new TextEncoder().encode("\nContinue with stale data? [y/N] "));
-      Deno.stdin.readSync(buf);
-      if (buf[0] !== 121 && buf[0] !== 89) { // y or Y
-        console.log("Aborted.");
-        Deno.exit(0);
-      }
-      console.log("");
+    if (localSha === remoteSha) return; // up to date
+
+    if (!localSha) {
+      console.warn(`\nNote: no applelocalization-tools.sha stamp found — can't verify data freshness.`);
+      console.warn(`  Latest remote commit: ${remoteSha.slice(0, 7)} (${remoteDate})`);
+      console.warn(`  To update your data: git -C ${gitDir} pull`);
+    } else {
+      console.warn(`\nWarning: your applelocalization-tools data may be out of date.`);
+      console.warn(`  Last built from: ${localSha.slice(0, 7)}`);
+      console.warn(`  Latest remote:   ${remoteSha.slice(0, 7)} (${remoteDate})`);
+      console.warn(`  To update: git -C ${gitDir} pull`);
     }
+
+    const buf = new Uint8Array(1);
+    Deno.stdout.writeSync(new TextEncoder().encode("\nContinue with current data? [y/N] "));
+    Deno.stdin.readSync(buf);
+    if (buf[0] !== 121 && buf[0] !== 89) {
+      console.log("Aborted.");
+      Deno.exit(0);
+    }
+    console.log("");
   } catch {
     // Staleness check is best-effort — never block the build
   }
+}
+
+async function writeStamp() {
+  try {
+    const res = await fetch(
+      "https://api.github.com/repos/kishikawakatsumi/applelocalization-tools/commits?per_page=1",
+      { headers: { "Accept": "application/vnd.github+json" } }
+    ).catch(() => null);
+    if (!res?.ok) return;
+    const [latest] = await res.json();
+    await Deno.writeTextFile(STAMP_FILE, latest.sha + "\n");
+  } catch { /* best-effort */ }
 }
 
 async function resolveDataDirs(root: string): Promise<string[]> {
@@ -319,6 +331,8 @@ const manifest = {
 };
 
 await Deno.writeTextFile(join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2));
+
+await writeStamp();
 
 console.log(`Done. ${totalRecords.toLocaleString()} records written to ${outDir}/`);
 console.log(`  ${languages.size} language files in by-language/`);
