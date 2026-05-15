@@ -12,11 +12,20 @@ This project gives an LLM access to Apple's actual translations so it can use wh
 
 ---
 
-## My Starting Point
+## Built on the shoulders of giants
 
-[applelocalization.com](https://applelocalization.com) is a searchable database of every localized string in iOS and macOS — millions of translations straight from Apple's localization teams. It's breath-takingly comprehensive. 
+This project is an add-on to two projects by [Katsumi Kishikawa](https://github.com/kishikawakatsumi):
 
-This repo adds two ways to plug that into an LLM:
+- **[applelocalization.com](https://applelocalization.com)** ([source](https://github.com/kishikawakatsumi/applelocalization-web)) — a searchable database of every localized string in iOS and macOS, millions of translations straight from Apple's frameworks. The MCP server in this repo wraps its search API.
+- **[applelocalization-tools](https://github.com/kishikawakatsumi/applelocalization-tools)** — the raw JSON data that powers the site. The export script in this repo transforms that data into LLM-ready JSONL files.
+
+Neither of those repos is modified by this project. You clone them separately and this repo sits alongside them. All credit for the underlying data and infrastructure goes to Katsumi.
+
+---
+
+## What this repo adds
+
+This repo adds two ways to plug that data into an LLM:
 
 1. **MCP server** — the LLM queries the live site in real time, fetching only the strings it needs
 2. **Local JSONL dataset** — a script that builds a flat bilingual corpus from the raw data, for offline use or fine-tuning
