@@ -172,15 +172,44 @@ This is useful when translating to multiple languages at once — one index look
 
 Works directly with LangChain, LlamaIndex, or any tool that reads JSONL.
 
-### Building it
+### Prerequisites
 
-Clone the raw data alongside this repo first:
+You'll need [Deno](https://deno.com):
 
 ```sh
-git clone --depth 1 https://github.com/macnotes/applelocalization-tools ../applelocalization-tools
+brew install deno
 ```
 
-Then run the export (latest iOS and macOS only, which is usually what you want):
+And the raw localization data — clone it alongside this repo:
+
+```sh
+git clone --depth 1 https://github.com/kishikawakatsumi/applelocalization-tools ../applelocalization-tools
+```
+
+### Building it
+
+**Most developers: pick your languages and platform**
+
+If you're building an iOS app and only need a handful of languages, this is all you need. Build time is a few seconds, output is a few hundred MB instead of 25GB:
+
+```sh
+deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
+  --data ../applelocalization-tools/data \
+  --out dataset \
+  --platform ios \
+  --languages fr,de,ja,ko,es
+```
+
+**iOS only, all languages (~12GB, ~6 min):**
+
+```sh
+deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
+  --data ../applelocalization-tools/data \
+  --out dataset \
+  --platform ios
+```
+
+**Everything — both platforms, latest versions (~25GB, ~10 min):**
 
 ```sh
 deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
@@ -188,7 +217,7 @@ deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
   --out dataset
 ```
 
-To get all historical OS versions:
+**All historical OS versions (very large):**
 
 ```sh
 deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
@@ -197,7 +226,7 @@ deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
   --all-versions
 ```
 
-**Heads up on size:** Latest-only gives you ~34 million pairs across ~500 language files, plus an `index.jsonl` with ~750,000 grouped records. Total is roughly 25GB on disk. The `dataset/` folder is gitignored — don't try to commit it.
+**Heads up on size:** The full build (both platforms, latest versions) gives you ~34 million pairs across ~500 language files plus `index.jsonl` — roughly 25GB on disk. Filtering to one platform and a few languages brings that down to under 1GB. The `dataset/` folder is gitignored — don't try to commit it.
 
 ### Example prompts
 

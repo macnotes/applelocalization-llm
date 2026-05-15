@@ -16,7 +16,7 @@
 // Usage:
 //   deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
 //     --data ../applelocalization-tools/data \
-//     --out dataset [--all-versions]
+//     --out dataset [--platform ios|macos] [--languages fr,ja,de,ko,es] [--all-versions]
 
 import { parse } from "https://deno.land/std@0.224.0/flags/mod.ts";
 import { walk } from "https://deno.land/std@0.224.0/fs/walk.ts";
@@ -48,14 +48,14 @@ interface IndexRecord {
   p: string;                          // platform
   v: string;                          // version
   b: string;                          // bundle path
-  translations: { l: string; t: string }[];  // all languages
+  translations: { l: string; t: string }[];  // all languages (filtered to --languages if specified)
 }
 
 const CONCURRENCY = 32;
 const FLUSH_THRESHOLD = 1000;
 
 const args = parse(Deno.args, {
-  string: ["data", "out"],
+  string: ["data", "out", "platform", "languages"],
   boolean: ["all-versions"],
   default: {
     data: "../applelocalization-tools/data",
@@ -67,12 +67,23 @@ const args = parse(Deno.args, {
 const dataDir = args.data;
 const outDir = args.out;
 const allVersions = args["all-versions"];
+const platformFilter = args.platform as string | undefined;
+const languageFilter = args.languages
+  ? new Set(args.languages.split(",").map((l: string) => l.trim()))
+  : null;
+
+if (platformFilter && !["ios", "macos"].includes(platformFilter)) {
+  console.error(`Unknown platform: ${platformFilter}. Use 'ios' or 'macos'.`);
+  Deno.exit(1);
+}
 
 async function resolveDataDirs(root: string): Promise<string[]> {
   const dirs: string[] = [];
 
   for await (const platformEntry of Deno.readDir(root)) {
     if (!platformEntry.isDirectory) continue;
+    if (platformFilter && platformEntry.name !== platformFilter) continue;
+
     const platformPath = join(root, platformEntry.name);
     const versionEntries: { name: string; path: string }[] = [];
 
@@ -187,7 +198,8 @@ async function processFile(filePath: string) {
     const source = enEntry ? enEntry.target : key;
     const groupKey = `${file.bundlePath}:${key}`;
 
-    const nonEnTranslations = translations.filter((t) => t.language !== "en");
+    const nonEnTranslations = translations.filter((t) => t.language !== "en" &&
+      (!languageFilter || languageFilter.has(t.language)));
     if (!nonEnTranslations.length) continue;
 
     // Write one index record per key with all translations grouped
