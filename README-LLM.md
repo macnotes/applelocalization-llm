@@ -21,9 +21,60 @@ This repo adds two ways to plug that into an LLM:
 1. **MCP server** — the LLM queries the live site in real time, fetching only the strings it needs
 2. **Local JSONL dataset** — a script that builds a flat bilingual corpus from the raw data, for offline use or fine-tuning
 
-Option 1 is way easier to setup... no build step needed. But a web call is slow. Fine if you just need to look up a term or two every once in a while, but it'd take forever for an LLM to translate an entire app. 
+The easiest way to use either is the Claude Code skill below — it figures out what's available and does the right thing. If you want to understand what's running underneath it, or set things up manually, read on.
 
-Option 2 re-writes the projects translation tables into a format that more easily and directly consumed by an LLM. 
+---
+
+## The `/translate-apple` Skill
+
+This is a [Claude Code](https://claude.ai/code) skill — a slash command that orchestrates everything. You drop it into your project, and from then on `/translate-apple` handles the lookup strategy, the classify-vs-generate split, and writing results back to your `.xcstrings` or `.strings` file.
+
+### Install
+
+Copy the skill into your project:
+
+```sh
+cp -r /path/to/applelocalization-llm/.claude/skills/translate-apple .claude/skills/
+```
+
+Or for global access (any project):
+
+```sh
+cp -r /path/to/applelocalization-llm/.claude/skills/translate-apple ~/.claude/skills/
+```
+
+### What it does
+
+When you invoke it, the skill:
+
+1. Checks for uncommitted changes on your file before touching anything
+2. Detects whether you have a local dataset, a local API server, or only the live site — and uses the fastest available
+3. Classifies each string: standard UI labels get looked up in Apple's data; free-form text, marketing copy, and app-specific strings get translated by the LLM
+4. For multi-language jobs, uses `index.jsonl` to fetch all translations in one lookup per string instead of hitting each language file separately
+5. Handles non-English source apps — if your strings are in French and you need Spanish and German, it finds the English bridge internally and returns what you asked for
+6. Writes translations back into your `.xcstrings` or `.strings` file, or prints a table for inline strings
+
+### Example invocations
+
+**Translate a String Catalog to multiple languages:**
+```
+/translate-apple Localizable.xcstrings French German Japanese Korean
+```
+
+**Translate inline strings:**
+```
+/translate-apple "Cancel, Save, Done, Are you sure?" into French and Spanish
+```
+
+**Non-English source app:**
+```
+/translate-apple MonApp.xcstrings — source is French, add Spanish and Italian
+```
+
+**Target a specific platform:**
+```
+/translate-apple Localizable.xcstrings French — macos
+```
 
 ---
 
@@ -57,7 +108,7 @@ Then add this to `~/Library/Application Support/Claude/claude_desktop_config.jso
         "run",
         "--allow-net",
         "--allow-env",
-        "/path/to/applelocalization-web/mcp/main.ts"
+        "/path/to/applelocalization-llm/mcp/main.ts"
       ]
     }
   }
@@ -94,26 +145,30 @@ If we need speed, we should let an LLM read translation data from our local hard
 
 Rewriting the entire localization data set from the original project takes a long time but it's worth it if you do a lot of localization, need to build a translation pipeline, train a model, or need to work offline. 
 
-The export script produces one file per language:
+The export script produces:
 
 - `dataset/manifest.json` — index of languages, record counts, platforms, and versions
-- `dataset/by-language/en-fr.jsonl`, `en-ja.jsonl`, `en-de.jsonl` … (one per target language) — every English→[language] pair
+- `dataset/index.jsonl` — one record per unique string with **all translations grouped**, for multi-language and non-English lookups
+- `dataset/by-language/en-fr.jsonl`, `en-ja.jsonl`, `en-de.jsonl` … (one per target language) — flat bilingual pairs
 
-Records use short field names to keep token costs down. The `language` field is omitted (it's in the filename). The key (`k`) only appears when it's an opaque identifier rather than the English string itself.
+Records use short field names to keep token costs down. The language is in the filename, not each record. The key (`k`) only appears when it's an opaque identifier rather than the English string itself.
 
 ```json
-{"s": "Cancel", "t": "Annuler", "p": "ios", "v": "26", "b": "/System/Library/Frameworks/UIKit.framework"}
+{"g": "/System/Library/Frameworks/UIKit.framework:Cancel", "s": "Cancel", "t": "Annuler", "p": "ios", "v": "26", "b": "/System/Library/Frameworks/UIKit.framework"}
 ```
 
 With an opaque key:
 ```json
-{"k": "show.more.options", "s": "Show more options", "t": "Mostrar más opciones", "p": "ios", "v": "26", "b": "..."}
+{"g": ".../Settings:show.more.options", "k": "show.more.options", "s": "Show more options", "t": "Mostrar más opciones", "p": "ios", "v": "26", "b": "..."}
 ```
 
-With an opaque key:
+The `g` field is a group key shared across all translations of the same string. The by-language files use it to link back to `index.jsonl`, where every translation for that string is grouped in one record:
+
 ```json
-{"k": "show.more.options", "s": "Show more options", "t": "Mostrar más opciones", "l": "es_US", "p": "ios", "v": "26"}
+{"g": "/System/Library/Frameworks/UIKit.framework:Cancel", "s": "Cancel", "p": "ios", "v": "26", "b": "...", "translations": [{"l": "fr", "t": "Annuler"}, {"l": "ja", "t": "キャンセル"}, {"l": "de", "t": "Abbrechen"}, ...]}
 ```
+
+This is useful when translating to multiple languages at once — one index lookup returns all 40+ translations rather than reading 40 separate files. It also supports non-English starting points: find the string in the language file for your source language, grab the `g` key, then pull all other translations from `index.jsonl`.
 
 Works directly with LangChain, LlamaIndex, or any tool that reads JSONL.
 
@@ -142,18 +197,24 @@ deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
   --all-versions
 ```
 
-**Heads up on size:** Latest-only alone gives you ~34 million pairs, ~500 language files, ~4,500 bundle files, and about 50GB on disk. The `dataset/` folder is gitignored — don't try to commit it.
+**Heads up on size:** Latest-only gives you ~34 million pairs across ~500 language files, plus an `index.jsonl` with ~750,000 grouped records. Total is roughly 25GB on disk. The `dataset/` folder is gitignored — don't try to commit it.
 
 ### Example prompts
+
+**Bulk translation:**
+> Read all strings from my Localizable.xcstrings. For each one, search dataset/by-language/en-de.jsonl for an exact source match (`s` field). Use Apple's translation if found, flag it for review if not.
+
+**Translating to multiple languages at once:**
+> Read dataset/index.jsonl. For each string in my Localizable.xcstrings that has an exact match on `s`, pull all translations from that record's `translations` array. Use those for French, German, Japanese, and Korean. Generate translations only for strings with no match.
+
+**Non-English source lookup:**
+> I have a French app and need Spanish translations. Search dataset/by-language/en-fr.jsonl for my French strings (match on `t`). For each hit, use the `g` key to look up the full record in index.jsonl and extract the Spanish (`es`) translation.
 
 **RAG pipeline:**
 > Load dataset/by-language/en-fr.jsonl into a vector store. When I ask you to translate a UI string to French, retrieve the 5 closest Apple translations as context and use those to guide your output.
 
 **Fine-tuning:**
 > Use dataset/by-language/en-ja.jsonl as training pairs for a model focused on Apple UI vocabulary in Japanese.
-
-**Bulk translation:**
-> Read all strings from my Localizable.xcstrings. For each one, search dataset/by-language/en-de.jsonl for an exact source match. Use Apple's translation if found, flag it for review if not.
 
 ---
 

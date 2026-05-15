@@ -16,7 +16,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
   "mcpServers": {
     "apple-localization": {
       "command": "deno",
-      "args": ["run", "--allow-net", "--allow-env", "/path/to/applelocalization-web/mcp/main.ts"]
+      "args": ["run", "--allow-net", "--allow-env", "/path/to/applelocalization-llm/mcp/main.ts"]
     }
   }
 }

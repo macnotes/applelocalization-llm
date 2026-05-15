@@ -6,8 +6,12 @@
 // Use --all-versions to export everything.
 //
 // Outputs:
-//   <out>/manifest.json           - index of platforms, versions, languages, record counts
-//   <out>/by-language/en-fr.jsonl - flat bilingual pairs, one file per target language
+//   <out>/manifest.json              - index of platforms, versions, languages, record counts
+//   <out>/index.jsonl                - one record per unique string with ALL translations grouped
+//   <out>/by-language/en-fr.jsonl    - flat bilingual pairs, one file per target language
+//
+// The group key (g) in by-language records links to the same string in index.jsonl,
+// enabling multi-language lookup and non-English source lookups.
 //
 // Usage:
 //   deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
@@ -26,14 +30,25 @@ interface SourceFile {
   localizations: Record<string, { language: string; target: string; filename: string }[]>;
 }
 
-// language is in the filename so it's omitted from each record
+// by-language record: language is in the filename
 interface LangRecord {
-  k?: string;  // key — omitted when identical to s
-  s: string;   // source (English)
-  t: string;   // target
-  p: string;   // platform
-  v: string;   // version
-  b: string;   // bundle path
+  g: string;    // group key (bundlePath:localizationKey) — links to index.jsonl
+  k?: string;   // localization key — omitted when identical to s
+  s: string;    // source (English)
+  t: string;    // target
+  p: string;    // platform
+  v: string;    // version
+  b: string;    // bundle path
+}
+
+// index record: one per unique string, all translations grouped
+interface IndexRecord {
+  g: string;                          // group key
+  s: string;                          // source (English, or key if no English translation)
+  p: string;                          // platform
+  v: string;                          // version
+  b: string;                          // bundle path
+  translations: { l: string; t: string }[];  // all languages
 }
 
 const CONCURRENCY = 32;
@@ -90,10 +105,13 @@ async function resolveDataDirs(root: string): Promise<string[]> {
 }
 
 await ensureDir(join(outDir, "by-language"));
+const indexPath = join(outDir, "index.jsonl");
+await Deno.writeTextFile(indexPath, ""); // truncate on rerun
 
 const encoder = new TextEncoder();
 const buffers: Map<string, string[]> = new Map();
 const handles: Map<string, Deno.FsFile> = new Map();
+const indexBuf: string[] = [];
 
 async function getHandle(path: string): Promise<Deno.FsFile> {
   if (!handles.has(path)) {
@@ -124,6 +142,7 @@ const versions = new Set<string>();
 const languages = new Set<string>();
 const langCounts: Record<string, number> = {};
 let totalRecords = 0;
+let totalGroups = 0;
 
 const absDataDir = await Deno.realPath(dataDir);
 const dataDirs = await resolveDataDirs(absDataDir);
@@ -166,12 +185,26 @@ async function processFile(filePath: string) {
   for (const [key, translations] of Object.entries(file.localizations)) {
     const enEntry = translations.find((t) => t.language === "en");
     const source = enEntry ? enEntry.target : key;
+    const groupKey = `${file.bundlePath}:${key}`;
 
-    for (const { language, target } of translations) {
-      if (language === "en") continue;
+    const nonEnTranslations = translations.filter((t) => t.language !== "en");
+    if (!nonEnTranslations.length) continue;
 
+    // Write one index record per key with all translations grouped
+    const indexRecord: IndexRecord = {
+      g: groupKey,
+      s: source,
+      p: platform,
+      v: version,
+      b: file.bundlePath,
+      translations: nonEnTranslations.map(({ language, target }) => ({ l: language, t: target })),
+    };
+    indexBuf.push(JSON.stringify(indexRecord));
+    totalGroups++;
+
+    for (const { language, target } of nonEnTranslations) {
       const keyField = key !== source ? { k: key } : {};
-      const record: LangRecord = { ...keyField, s: source, t: target, p: platform, v: version, b: file.bundlePath };
+      const record: LangRecord = { g: groupKey, ...keyField, s: source, t: target, p: platform, v: version, b: file.bundlePath };
       const langFile = join(outDir, "by-language", `en-${language}.jsonl`);
 
       bufferLine(langFile, record);
@@ -181,6 +214,13 @@ async function processFile(filePath: string) {
       langCounts[`en-${language}`] = (langCounts[`en-${language}`] ?? 0) + 1;
       totalRecords++;
     }
+  }
+
+  // Flush index buffer periodically to avoid memory buildup
+  if (indexBuf.length >= FLUSH_THRESHOLD) {
+    const indexHandle = await getHandle(indexPath);
+    await indexHandle.write(encoder.encode(indexBuf.join("\n") + "\n"));
+    indexBuf.length = 0;
   }
 
   await Promise.all([...flushPaths].map(maybeFlush));
@@ -195,11 +235,20 @@ async function worker() {
 
 await Promise.all(Array.from({ length: CONCURRENCY }, worker));
 await Promise.all([...buffers.keys()].map(flushBuffer));
+
+// Flush any remaining index records
+if (indexBuf.length) {
+  const indexHandle = await getHandle(indexPath);
+  await indexHandle.write(encoder.encode(indexBuf.join("\n") + "\n"));
+  indexBuf.length = 0;
+}
+
 for (const handle of handles.values()) handle.close();
 
 const manifest = {
   generated: new Date().toISOString(),
   total_records: totalRecords,
+  total_groups: totalGroups,
   platforms: [...platforms].sort(),
   versions: [...versions].sort(),
   languages: Object.entries(langCounts)
@@ -211,3 +260,4 @@ await Deno.writeTextFile(join(outDir, "manifest.json"), JSON.stringify(manifest,
 
 console.log(`Done. ${totalRecords.toLocaleString()} records written to ${outDir}/`);
 console.log(`  ${languages.size} language files in by-language/`);
+console.log(`  index.jsonl with ${totalGroups.toLocaleString()} groups`);
