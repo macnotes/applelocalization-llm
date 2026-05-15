@@ -6,9 +6,8 @@
 // Use --all-versions to export everything.
 //
 // Outputs:
-//   <out>/manifest.json              - index of all platforms, versions, languages, bundles
-//   <out>/by-language/en-fr.jsonl    - flat bilingual pairs {key, source, target, language, platform, version, bundle}
-//   <out>/by-bundle/<framework>.jsonl - all languages for a single framework
+//   <out>/manifest.json           - index of platforms, versions, languages, record counts
+//   <out>/by-language/en-fr.jsonl - flat bilingual pairs, one file per target language
 //
 // Usage:
 //   deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
@@ -27,7 +26,7 @@ interface SourceFile {
   localizations: Record<string, { language: string; target: string; filename: string }[]>;
 }
 
-// by-language record: language is in the filename, bundle is in the filename for by-bundle
+// language is in the filename so it's omitted from each record
 interface LangRecord {
   k?: string;  // key — omitted when identical to s
   s: string;   // source (English)
@@ -35,15 +34,6 @@ interface LangRecord {
   p: string;   // platform
   v: string;   // version
   b: string;   // bundle path
-}
-
-interface BundleRecord {
-  k?: string;  // key — omitted when identical to s
-  s: string;   // source (English)
-  t: string;   // target
-  l: string;   // language
-  p: string;   // platform
-  v: string;   // version
 }
 
 const CONCURRENCY = 32;
@@ -100,7 +90,6 @@ async function resolveDataDirs(root: string): Promise<string[]> {
 }
 
 await ensureDir(join(outDir, "by-language"));
-await ensureDir(join(outDir, "by-bundle"));
 
 const encoder = new TextEncoder();
 const buffers: Map<string, string[]> = new Map();
@@ -113,7 +102,7 @@ async function getHandle(path: string): Promise<Deno.FsFile> {
   return handles.get(path)!;
 }
 
-function bufferLine(path: string, record: LangRecord | BundleRecord) {
+function bufferLine(path: string, record: LangRecord) {
   if (!buffers.has(path)) buffers.set(path, []);
   buffers.get(path)!.push(JSON.stringify(record));
 }
@@ -133,9 +122,7 @@ async function maybeFlush(path: string) {
 const platforms = new Set<string>();
 const versions = new Set<string>();
 const languages = new Set<string>();
-const bundles = new Set<string>();
 const langCounts: Record<string, number> = {};
-const bundleCounts: Record<string, number> = {};
 let totalRecords = 0;
 
 const absDataDir = await Deno.realPath(dataDir);
@@ -171,14 +158,10 @@ async function processFile(filePath: string) {
     return;
   }
 
-  const frameworkSlug = file.framework.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const bundleFile = join(outDir, "by-bundle", `${frameworkSlug}.jsonl`);
-
   platforms.add(platform);
   versions.add(`${platform}@${version}`);
-  bundles.add(file.framework);
 
-  const flushPaths = new Set<string>([bundleFile]);
+  const flushPaths = new Set<string>();
 
   for (const [key, translations] of Object.entries(file.localizations)) {
     const enEntry = translations.find((t) => t.language === "en");
@@ -188,17 +171,14 @@ async function processFile(filePath: string) {
       if (language === "en") continue;
 
       const keyField = key !== source ? { k: key } : {};
-      const langRecord: LangRecord = { ...keyField, s: source, t: target, p: platform, v: version, b: file.bundlePath };
-      const bundleRecord: BundleRecord = { ...keyField, s: source, t: target, l: language, p: platform, v: version };
+      const record: LangRecord = { ...keyField, s: source, t: target, p: platform, v: version, b: file.bundlePath };
       const langFile = join(outDir, "by-language", `en-${language}.jsonl`);
 
-      bufferLine(langFile, langRecord);
-      bufferLine(bundleFile, bundleRecord);
+      bufferLine(langFile, record);
       flushPaths.add(langFile);
 
       languages.add(language);
       langCounts[`en-${language}`] = (langCounts[`en-${language}`] ?? 0) + 1;
-      bundleCounts[frameworkSlug] = (bundleCounts[frameworkSlug] ?? 0) + 1;
       totalRecords++;
     }
   }
@@ -225,13 +205,9 @@ const manifest = {
   languages: Object.entries(langCounts)
     .sort((a, b) => b[1] - a[1])
     .map(([lang, count]) => ({ lang, count })),
-  bundles: Object.entries(bundleCounts)
-    .sort((a, b) => b[1] - a[1])
-    .map(([bundle, count]) => ({ bundle, count })),
 };
 
 await Deno.writeTextFile(join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2));
 
-console.log(`Done. ${totalRecords.toLocaleString()} pair records written to ${outDir}/`);
+console.log(`Done. ${totalRecords.toLocaleString()} records written to ${outDir}/`);
 console.log(`  ${languages.size} language files in by-language/`);
-console.log(`  ${bundles.size} bundle files in by-bundle/`);

@@ -94,22 +94,20 @@ If we need speed, we should let an LLM read translation data from our local hard
 
 Rewriting the entire localization data set from the original project takes a long time but it's worth it if you do a lot of localization, need to build a translation pipeline, train a model, or need to work offline. 
 
-The export script produces one file per language and one file per framework bundle:
+The export script produces one file per language:
 
-- `dataset/manifest.json` — index of everything: languages, bundles, record counts
-- `dataset/by-language/en-fr.jsonl`, `en-ja.jsonl`, `en-de.jsonl` … (one per target language) — every English→[language] pair across all frameworks
-- `dataset/by-bundle/SafariServices.framework.jsonl`, `UIKitCore.framework.jsonl` … (one per framework) — all languages for that framework
+- `dataset/manifest.json` — index of languages, record counts, platforms, and versions
+- `dataset/by-language/en-fr.jsonl`, `en-ja.jsonl`, `en-de.jsonl` … (one per target language) — every English→[language] pair
 
-Records use short field names to keep token costs down. The `language` field is omitted from by-language files (it's in the filename), and `bundle` is omitted from by-bundle files. The key (`k`) only appears when it's an opaque identifier rather than the English string itself.
+Records use short field names to keep token costs down. The `language` field is omitted (it's in the filename). The key (`k`) only appears when it's an opaque identifier rather than the English string itself.
 
-by-language (`en-fr.jsonl`):
 ```json
 {"s": "Cancel", "t": "Annuler", "p": "ios", "v": "26", "b": "/System/Library/Frameworks/UIKit.framework"}
 ```
 
-by-bundle (`UIKitCore.framework.jsonl`):
+With an opaque key:
 ```json
-{"s": "Cancel", "t": "Annuler", "l": "fr", "p": "ios", "v": "26"}
+{"k": "show.more.options", "s": "Show more options", "t": "Mostrar más opciones", "p": "ios", "v": "26", "b": "..."}
 ```
 
 With an opaque key:
@@ -172,10 +170,30 @@ deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
 
 ---
 
-## Better/Future options?
+## Why is the local dataset so big?
 
-**Hugging Face Datasets** — the JSONL output would be a natural fit for [Hugging Face](https://huggingface.co/datasets), which is free for public datasets and supported natively by LangChain and the HF `datasets` library. Not done yet because the dataset is ~50GB and needs some thought around sharding before publishing and because it would be rude to post something there unless the original author consents.
+The source data in [applelocalization-tools](https://github.com/kishikawakatsumi/applelocalization-tools) is about 6GB. The exported dataset is roughly 4x that. Here's why.
 
-**GitHub Releases** — individual language files gzip down to 50–150MB each, which fits GitHub's release asset limit. Would let people download just `en-fr.jsonl` without running the build script. 
+The source files store all languages together under each key:
 
-**Embeddings index** — pre-computing embeddings would enable semantic search, so you could find Apple's translation for "undo last action" even if that exact string isn't in the database. 
+```json
+{"Cancel": [{"language": "fr", "target": "Annuler"}, {"language": "ja", "target": "キャンセル"}, ...]}
+```
+
+To make it useful for an LLM, we explode that into one record per language pair. "Cancel" with 40 translations becomes 40 separate records spread across 40 different files. That expansion is structural — it's the price of making the data directly consumable without an intermediate database.
+
+The tradeoff comes down to this: the MCP server approach queries the live website, which is fast for a few strings but slow (~30s per query) for bulk work. The local dataset flips that — instant reads, but you pay a one-time build cost and carry the storage.
+
+## What's not here yet
+
+**Hugging Face Datasets** — the JSONL output would be a natural fit for [Hugging Face](https://huggingface.co/datasets), which is free for public datasets and natively supported by LangChain and the HF `datasets` library. Publishing there would let people load just `en-fr` without running the build script. Not done yet — the dataset needs sharding before publishing, and it would be worth coordinating with the original project author first.
+
+**GitHub Releases** — individual language files gzip down significantly and could be attached as release assets, letting people download just the language they need. Not done yet.
+
+**Embeddings index** — pre-computing embeddings would enable semantic search, so you could find Apple's translation for "undo last action" even if that exact string isn't in the database. Not done yet.
+
+**by-bundle files** — an earlier version of this script also produced per-framework files (e.g. `UIKitCore.framework.jsonl`) so you could load only the strings relevant to a specific framework. Dropped because it doubled the output size with data that's already in the by-language files — you can get the same result with a `jq` filter:
+
+```sh
+jq 'select(.b | contains("UIKitCore"))' dataset/by-language/en-fr.jsonl
+```
