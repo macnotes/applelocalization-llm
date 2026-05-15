@@ -1,10 +1,10 @@
 # Using Apple Localization Data with LLMs
 
-I'm a lone developer. Mostly Swift apps... no team of translators to help me localize. Localization isn't something I'd even consider before LLM AI came on the scene. AI combined with Apple's switch from Strings files to String Catalogs (.xcstrings files), introduced in Xcode 15. They're JSON-based, support pluralization and device variations in a single file, and Xcode manages them directly in a dedicated editor.
+I'm a lone developer. Mostly Swift apps... no team of translators to help me localize. Localization isn't something I'd even consider before LLM AI came on the scene. AI combined with Apple's switch from Strings files to String Catalogs (.xcstrings) in Xcode 15 makes it possible. Xcstring files are JSON-based, support pluralization and device variations in a single file, and Xcode manages them directly in a dedicated editor. 
 
-There's really no excuse to localized anymore. AI makes quick work of it. There is one catch, though. Language is idiomatic and LLMs make translation mistakes there. If you're a non-English speaker, you're probably used to it, but it's still kind of annoying. I get distracted when I read something in UK English and they spell "colour" wrong but non-English speakers have it way worse. 
+There's really no excuse to not localize anymore. AI makes quick work of it. There's a catch, though. Language is idiomatic and LLMs make translation mistakes. If you're a non-English speaker, you're probably used to it, but it's still kind of annoying. I'm an English speaker so I'm lucky in that most everything I need to read is already in English, but I even find it distracting when I read something in UK English and they spell "colour" wrong. But non-English speakers have it way worse. 
 
-Speaking here to my fellow English-speakers... we've opened hundreds or thousands of apps in our lifetime, and every one of them has a "Settings" menu item. Then one day, you open one and it says, "Adjustments". Not very professional, but you'll get cases like this if you just let AI do its thing. And since few of us in the US are fluent in many languages, we'll never know about a mistake unless someone corrects us. 
+Us English-speakers have opened hundreds of apps in our lifetimes, and almost every single one of them has a "Settings" menu item. But imagine one day you open one and it says, "Adjustments". Not very professional, but people who use translated software have to put up with that all the time. You'll get cases like this if you just let AI do its own thing. And unless a developer is fluent in all the languages they want to localize, we'll never know about a mistake unless someone corrects us. 
 
 > Ask a general-purpose LLM to translate "Settings" into French and it'll say **"Paramètres"** — which is correct French. But every iPhone user in France sees **"Réglages"** in the Settings app. Ask it for "Close" and you might get "Clore" or "Fermeture". Apple uses **"Fermer"**, every time, everywhere.
 
@@ -12,14 +12,15 @@ This project gives an LLM access to Apple's actual translations so it can use wh
 
 ---
 
-## Built on the shoulders of giants
+## Localization Data
 
-This project is an add-on to two projects by [Katsumi Kishikawa](https://github.com/kishikawakatsumi):
+This project is an add-on to two projects by [Katsumi Kishikawa](https://github.com/kishikawakatsumi). I can't even imaging how many hours he must have spent putting it all together. 
 
-- **[applelocalization.com](https://applelocalization.com)** ([source](https://github.com/kishikawakatsumi/applelocalization-web)) — a searchable database of every localized string in iOS and macOS, millions of translations straight from Apple's frameworks. The MCP server in this repo wraps its search API.
-- **[applelocalization-tools](https://github.com/kishikawakatsumi/applelocalization-tools)** — the raw JSON data that powers the site. The export script in this repo transforms that data into LLM-ready JSONL files.
+- **[applelocalization.com](https://applelocalization.com)** is a website with a searchable database of every localized string in iOS and macOS, millions of translations straight from Apple's frameworks. The MCP server in this project wraps Kishikawa-san's search API. You don't have to download any of the Kishikawa projects if you just want to have the MCP talk to the website he hosts. 
 
-Neither of those repos is modified by this project. You clone them separately and this repo sits alongside them. All credit for the underlying data and infrastructure goes to Katsumi.
+- **[applelocalization-web](https://github.com/kishikawakatsumi/applelocalization-web) is the source code for the applelocalization.com website. You can download that and run the website locally then have the MCP talk to that instead of the hosted version. The MCP can do lookups faster that way. 
+
+- **[applelocalization-tools](https://github.com/kishikawakatsumi/applelocalization-tools)** has the raw JSON data that powers the applelocalization.com website. If you want to do bulk translations, clone that repo and then run the LLM export script in this repo. That transforms the translation database into JSONL files that are easier for an LLM to digest.
 
 ---
 
@@ -31,6 +32,33 @@ This repo adds two ways to plug that data into an LLM:
 2. **Local JSONL dataset** — a script that builds a flat bilingual corpus from the raw data, for offline use or fine-tuning
 
 The easiest way to use either is the Claude Code skill below — it figures out what's available and does the right thing. If you want to understand what's running underneath it, or set things up manually, read on.
+
+
+## Setup
+
+You've got some options depending on what you need. They're covered in more detail below. 
+
+* If you just need to look up a couple words once in a while, just use [applelocalization.com](https://applelocalization.com). 
+* If you just need to look up a few words here and there but want an AI to do it, install the MCP from this project. It'll talk to the hosted website's API. 
+* If you need to look up a few more words that that, but don't have a ton of hard-drive space and your happy to just run the website locally to cut down the round trip on the internet to fetch things off the hosted site, download a copy of the -web project and spin it up local. Then the MCP can talk to that. 
+* Doing serious translation work? Download the -tools dataset and run the LLM export script. Then an AI can just read right out of that and skip the web server API overhead altogether. 
+
+
+*Which one?*
+
+| | MCP Server | Local Dataset |
+|---|---|---|
+| **Best for** | Translating in an IDE or chat | Bulk translation, RAG pipelines, fine-tuning, offline |
+| **Setup** | 5 minutes | ~6 min build time (latest versions) |
+| **Token cost** | Very low — only fetches what it needs | Depends on how much you load |
+| **Latency** | ~30s first query, instant on cache hit | Instant |
+| **Works offline** | No | Yes |
+| **Always current** | Yes | No — snapshot at build time |
+
+
+Instructions for the options are below. 
+
+Check out the /translate-apple skill. It pulls it all together and you can see how it works. 
 
 ---
 
@@ -57,7 +85,7 @@ cp -r /path/to/applelocalization-llm/.claude/skills/translate-apple ~/.claude/sk
 When you invoke it, the skill:
 
 1. Checks for uncommitted changes on your file before touching anything
-2. Detects whether you have a local dataset, a local API server, or only the live site — and uses the fastest available
+2. Detects whether you have a local LLM dataset generated or a local API server. If not, it talks to the hosted site. It'll use the fastest available. 
 3. Classifies each string: standard UI labels get looked up in Apple's data; free-form text, marketing copy, and app-specific strings get translated by the LLM
 4. For multi-language jobs, uses `index.jsonl` to fetch all translations in one lookup per string instead of hitting each language file separately
 5. Handles non-English source apps — if your strings are in French and you need Spanish and German, it finds the English bridge internally and returns what you asked for
@@ -87,9 +115,7 @@ When you invoke it, the skill:
 
 ---
 
-## Option 1: MCP Server
-
-This is the easy option. You hook it up once, and from then on when you ask an LLM to translate something it looks up Apple's version first.
+## Setting up the MCP Server option
 
 Two tools are exposed:
 
@@ -130,7 +156,7 @@ The applelocalization.com website code is [available from GitHub](https://github
 APPLE_LOC_API=http://localhost:8080 deno run --allow-net --allow-env mcp/main.ts
 ```
 
-### Example prompts for the MCP method
+### Example prompts for the MCP
 
 **Translating a website:**
 > I'm building a web app. Translate these UI strings into French, German, Japanese, and Simplified Chinese. Check the apple-localization tool first for each one — use Apple's translation if it exists, otherwise generate one.
@@ -148,16 +174,16 @@ APPLE_LOC_API=http://localhost:8080 deno run --allow-net --allow-env mcp/main.ts
 
 ---
 
-## Option 2: Local JSONL Dataset
+## Setting up the Local JSONL Dataset
 
-If we need speed, we should let an LLM read translation data from our local hard drives. We could just download the applelocalization.com project from GitHub and tell the AI to look there, but that project wasn't written with LLM consumption in mind. So we have to do some semi-significant transformations on the data to get them into a form LLM can ingest more efficiently in terms of speed and token requirements. 
+If you need speed, you should let an LLM read translation data direct from local storage. An AI could just read the raw data that powers the applelocalization.com project, but the data's setup to feed the relational db that backs up the website. It wasn't written with LLM consumption in mind. Not a problem... we can do some transformations on the data to get them into a form LLM can ingest more efficiently in terms of speed and token requirements. 
 
-Rewriting the entire localization data set from the original project takes a long time but it's worth it if you do a lot of localization, need to build a translation pipeline, train a model, or need to work offline. 
+Rewriting the entire localization data set from the original project takes a long time but it's worth it if you do a lot of localization, need to build a translation pipeline, train a model, or need to work offline. But you can save a lot of time and hard drive space if you selectively build just the languages and platforms (macOS apps, iOS apps) you actually need. 
 
 The export script produces:
 
 - `dataset/manifest.json` — index of languages, record counts, platforms, and versions
-- `dataset/index.jsonl` — one record per unique string with **all translations grouped**, for multi-language and non-English lookups
+- `dataset/index.jsonl` — one record per unique string with all translations grouped, for multi-language and non-English lookups
 - `dataset/by-language/en-fr.jsonl`, `en-ja.jsonl`, `en-de.jsonl` … (one per target language) — flat bilingual pairs
 
 Records use short field names to keep token costs down. The language is in the filename, not each record. The key (`k`) only appears when it's an opaque identifier rather than the English string itself.
@@ -241,7 +267,7 @@ deno run --allow-read --allow-write --allow-net --allow-run scripts/export-llm-d
   --all-versions
 ```
 
-**Heads up on size:** The full build (both platforms, latest versions) gives you ~34 million pairs across ~500 language files plus `index.jsonl` — roughly 25GB on disk. Filtering to one platform and a few languages brings that down to under 1GB. The `dataset/` folder is gitignored — don't try to commit it.
+**Heads up on size:** The full build (both platforms, latest versions) gives you ~34 million pairs across ~500 language files plus `index.jsonl` — roughly 25GB on disk. Filtering to one platform and a few languages brings that down to under 1GB. 
 
 ### Language codes
 
@@ -298,22 +324,9 @@ Use these codes with `--languages`. Apple uses its own locale identifiers — no
 
 ---
 
-## Which one?
+### Why's the generated local LLM dataset so big?
 
-| | MCP Server | Local Dataset |
-|---|---|---|
-| **Best for** | Translating in an IDE or chat | Bulk translation, RAG pipelines, fine-tuning, offline |
-| **Setup** | 5 minutes | ~6 min build time (latest versions) |
-| **Token cost** | Very low — only fetches what it needs | Depends on how much you load |
-| **Latency** | ~30s first query, instant on cache hit | Instant |
-| **Works offline** | No | Yes |
-| **Always current** | Yes | No — snapshot at build time |
-
----
-
-## Why is the local dataset so big?
-
-The source data in [applelocalization-tools](https://github.com/kishikawakatsumi/applelocalization-tools) is about 6GB. The exported dataset is roughly 4x that. Here's why.
+The source data in [applelocalization-tools](https://github.com/kishikawakatsumi/applelocalization-tools) is about 6GB. The exported dataset would be a multiple of that if you exported the whole thing. 
 
 The source files store all languages together under each key:
 
@@ -321,17 +334,17 @@ The source files store all languages together under each key:
 {"Cancel": [{"language": "fr", "target": "Annuler"}, {"language": "ja", "target": "キャンセル"}, ...]}
 ```
 
-To make it useful for an LLM, we explode that into one record per language pair. "Cancel" with 40 translations becomes 40 separate records spread across 40 different files. That expansion is structural — it's the price of making the data directly consumable without an intermediate database.
+To make it useful for an LLM without consuming more tokens than we'd like, we explode that into one record per language pair. "Cancel" with 40 translations becomes 40 separate records spread across 40 different files. That expansion is structural — it's the price of making the data directly consumable without an intermediate database.
 
 The tradeoff comes down to this: the MCP server approach queries the live website, which is fast for a few strings but slow (~30s per query) for bulk work. The local dataset flips that — instant reads, but you pay a one-time build cost and carry the storage.
 
-## What's not here yet
+## To-Do?
 
-**Hugging Face Datasets** — the JSONL output would be a natural fit for [Hugging Face](https://huggingface.co/datasets), which is free for public datasets and natively supported by LangChain and the HF `datasets` library. Publishing there would let people load just `en-fr` without running the build script. Not done yet — the dataset needs sharding before publishing, and it would be worth coordinating with the original project author first.
+**Hugging Face Datasets** — the JSONL output would be a natural fit for [Hugging Face](https://huggingface.co/datasets), which is free for public datasets and natively supported by LangChain and the HF `datasets` library. Publishing there would let people load just `en-fr` without running the build script. The dataset needs sharding before publishing. 
 
-**GitHub Releases** — individual language files gzip down significantly and could be attached as release assets, letting people download just the language they need. Not done yet.
+**GitHub Releases** — individual language files gzip down significantly and could be attached as release assets, letting people download just the language they need. Probably not practical given file sizes. 
 
-**Embeddings index** — pre-computing embeddings would enable semantic search, so you could find Apple's translation for "undo last action" even if that exact string isn't in the database. Not done yet.
+**Embeddings index** — pre-computing embeddings would enable semantic search, so you could find Apple's translation for "undo last action" even if that exact string isn't in the database. 
 
 **by-bundle files** — an earlier version of this script also produced per-framework files (e.g. `UIKitCore.framework.jsonl`) so you could load only the strings relevant to a specific framework. Dropped because it doubled the output size with data that's already in the by-language files — you can get the same result with a `jq` filter:
 
