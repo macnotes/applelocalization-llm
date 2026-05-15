@@ -4,11 +4,11 @@ I'm a lone developer... no team of translators to help me localize. Localization
 
 There's really no excuse to not localize anymore. AI makes quick work of it. There's a catch, though. Language is idiomatic and LLMs make translation mistakes. If you're a non-English speaker, you're probably used to it, but it's still kind of annoying. I'm an English speaker so I'm lucky in that most everything I need to read is already in English, but I even find it distracting when I read something in UK English and they spell "colour" wrong. But non-English speakers have it way worse. 
 
-Us English-speakers have opened hundreds of apps in our lifetimes, and almost every single one of them has a "Settings" menu item. But imagine one day you open one and it says, "Adjustments". Not very professional, but people who use translated software have to put up with that all the time. You'll get cases like this if you just let AI do its own thing. And unless a developer is fluent in all the languages they want to localize, we'll never know about a mistake unless someone corrects us. 
+Us English-speakers have opened hundreds of apps in our lifetimes, and almost every single one of them has a "Settings" menu item. But imagine one day you open one and it says, "Adjustments". Not very professional, but people who use translated software have to put up with that kind of thing all the time. You'll get cases like this if you just let AI do its own thing. And unless we're fluent in all the languages we want to localize, we'll never know about a mistake unless someone corrects us. 
 
 > Ask a general-purpose LLM to translate "Settings" into French and it'll say **"Paramètres"** — which is correct French. But every iPhone user in France sees **"Réglages"** in the Settings app. Ask it for "Close" and you might get "Clore" or "Fermeture". Apple uses **"Fermer"**, every time, everywhere.
 
-This project gives an LLM access to Apple's actual translations so it can use what Apple ships, not what sounds reasonable.
+This project gives an LLM access to Apple's standard translations so it can use what Apple ships, not what sounds reasonable.
 
 ---
 
