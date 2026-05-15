@@ -77,7 +77,10 @@ if (platformFilter && !["ios", "macos"].includes(platformFilter)) {
   Deno.exit(1);
 }
 
-const STAMP_FILE = "applelocalization-tools.sha";
+// Stamp file lives in the data repo root, not here — it reflects the local data state
+function stampFile(dataPath: string): string {
+  return dataPath.endsWith("/data") ? dataPath.slice(0, -5) + "/applelocalization-tools.sha" : dataPath + "/applelocalization-tools.sha";
+}
 
 // Compares the local stamp file against the latest commit SHA on GitHub.
 // Writes an updated stamp after a successful build (called at end of script).
@@ -87,7 +90,7 @@ async function checkDataFreshness(dataPath: string) {
 
     // Read local stamp (SHA we last built from)
     let localSha: string | null = null;
-    try { localSha = (await Deno.readTextFile(STAMP_FILE)).trim(); } catch { /* no stamp yet */ }
+    try { localSha = (await Deno.readTextFile(stampFile(dataPath))).trim(); } catch { /* no stamp yet */ }
 
     // Fetch latest commit SHA from GitHub API
     const res = await fetch(
@@ -126,7 +129,7 @@ async function checkDataFreshness(dataPath: string) {
   }
 }
 
-async function writeStamp() {
+async function writeStamp(dataPath: string) {
   try {
     const res = await fetch(
       "https://api.github.com/repos/kishikawakatsumi/applelocalization-tools/commits?per_page=1",
@@ -134,7 +137,7 @@ async function writeStamp() {
     ).catch(() => null);
     if (!res?.ok) return;
     const [latest] = await res.json();
-    await Deno.writeTextFile(STAMP_FILE, latest.sha + "\n");
+    await Deno.writeTextFile(stampFile(dataPath), latest.sha + "\n");
   } catch { /* best-effort */ }
 }
 
@@ -332,7 +335,7 @@ const manifest = {
 
 await Deno.writeTextFile(join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2));
 
-await writeStamp();
+await writeStamp(absDataDir);
 
 console.log(`Done. ${totalRecords.toLocaleString()} records written to ${outDir}/`);
 console.log(`  ${languages.size} language files in by-language/`);
