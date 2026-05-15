@@ -62,7 +62,7 @@ APPLE_LOC_API=http://localhost:8080 deno run --allow-net --allow-env mcp/main.ts
 > Strings: Cancel, Save, Delete, Are you sure?, Sign In, Sign Out, Settings, Search, Loading…
 
 **Translating an iOS app in Xcode:**
-> Here is my Localizable.strings file for English. Generate equivalent files for French and Japanese. For each string, first check the apple-localization tool to see if Apple uses a standard translation for it. Use Apple's translation if one exists, and note which strings you sourced from Apple vs. generated yourself.
+> Here is my Localizable.xcstrings file. Add French and Japanese translations for every string. For each one, first check the apple-localization tool to see if Apple uses a standard translation. Use Apple's translation if one exists, and note which strings you sourced from Apple vs. generated yourself.
 
 **Exact match for a known system string:**
 > Use apple-localization to look up "Back" with match mode "exact" for iOS, in French and German. I want to use the same translation Apple uses in navigation bars.
@@ -122,7 +122,7 @@ deno run --allow-read --allow-write scripts/export-llm-dataset.ts \
 > Use dataset/by-language/en-ja.jsonl as training pairs to fine-tune a translation model specifically for Apple UI vocabulary in Japanese.
 
 **Bulk translation script:**
-> Read all strings from my .strings file. For each one, search dataset/by-language/en-de.jsonl for an exact match on the source field. Use Apple's translation if found, otherwise flag it for manual review.
+> Read all strings from my Localizable.xcstrings file. For each one, search dataset/by-language/en-de.jsonl for an exact match on the source field. Use Apple's translation if found, otherwise flag it for manual review.
 
 ---
 
