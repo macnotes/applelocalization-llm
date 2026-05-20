@@ -12,9 +12,9 @@ This project gives an LLM access to Apple's standard translations so it can use 
 
 ## Localization Data
 
-This project is an add-on to two projects by [Katsumi Kishikawa](https://github.com/kishikawakatsumi). I can't even imaging how many hours he must have spent putting it all together. 
+This project is an add-on to projects created by [Katsumi Kishikawa](https://github.com/kishikawakatsumi). 
 
-- **[applelocalization.com](https://applelocalization.com)** is a website with a searchable database of every localized string in iOS and macOS, millions of translations straight from Apple's frameworks. The MCP server in this project wraps Kishikawa-san's search API. You don't have to download any of the Kishikawa projects if you just want to have the MCP talk to the website he hosts. 
+- **[applelocalization.com](https://applelocalization.com)** is a website with a searchable database of every localized string in iOS and macOS, millions of translations straight from Apple's frameworks. The MCP server in this project wraps Kishikawa-san's search API. You don't have to download any of the Kishikawa projects if you just want to see how an MCP talks to the website he hosts. But it might be kind (and much faster for you) to run this project locally (see next ite,) since AI can spam lookups far faster than the humans for whom the hosted site was likely intended. 
 
 - **[applelocalization-web](https://github.com/kishikawakatsumi/applelocalization-web)** is the source code for the applelocalization.com website. You can download that and run the website locally then have the MCP talk to that instead of the hosted version. The MCP can do lookups faster that way. 
 
@@ -27,9 +27,9 @@ This project is an add-on to two projects by [Katsumi Kishikawa](https://github.
 This repo adds two ways to plug that data into an LLM:
 
 1. **MCP server** — the LLM queries the live site in real time, fetching only the strings it needs
-2. **Local JSONL dataset** — a script that builds a flat bilingual corpus from the raw data, for offline use or fine-tuning
+2. **Local JSONL dataset** — a script that builds a flat bilingual corpus from the raw data. Enables far faster lookups. 
 
-The easiest way to use either is the Claude Code skill below — it figures out what's available and does the right thing. If you want to understand what's running underneath it, or set things up manually, read on.
+The Claude Code skill figures out what's available and does the right thing. If you want to understand what's running underneath it, or set things up manually, read on.
 
 
 ## Setup
